@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Smasher</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        html[lang="en"] body {
+             font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+        .card {
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            touch-action: none;
+        }
+        .card.removing-left {
+            transform: translateX(-150%) rotate(-20deg);
+            opacity: 0;
+        }
+        .card.removing-right {
+            transform: translateX(150%) rotate(20deg);
+            opacity: 0;
+        }
+        .file-icon {
+            width: 100px;
+            height: 100px;
+        }
+        .btn-action:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-pass { background-color: #2563eb; color: white; }
+        .btn-pass:hover { background-color: #1d4ed8; }
+        .btn-smash { background-color: #dc2626; color: white; }
+        .btn-smash:hover { background-color: #b91c1c; }
+        .btn-skip { background-color: #f59e0b; color: white; }
+        .btn-skip:hover { background-color: #d97706; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-4">
+
+    <div id="app-container" class="w-full max-w-md mx-auto">
+        
+        <!-- Language Switcher -->
+        <div class="text-center mb-4">
+            <button id="lang-switcher" class="text-sm text-indigo-600 hover:text-indigo-800 font-semibold" data-lang-key="langSwitcher"></button>
+        </div>
+
+        <!-- Initial View -->
+        <div id="initial-view" class="text-center bg-white p-8 rounded-2xl shadow-lg">
+            <h1 class="text-3xl font-bold mb-2" data-lang-key="title"></h1>
+            <p class="text-gray-600 mb-6" data-lang-key="subtitle"></p>
+            
+            <div class="space-y-4 mb-6">
+                <div class="flex items-center justify-center space-x-2 group relative" id="subfolder-container">
+                    <input type="checkbox" id="include-subfolders" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" checked>
+                    <label for="include-subfolders" class="text-gray-700" data-lang-key="subfolderLabel"></label>
+                    <span class="text-gray-400 cursor-help">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </span>
+                    <div class="absolute bottom-full mb-2 w-max max-w-xs hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-2 shadow-lg z-10 text-center" data-lang-key="subfolderTooltip"></div>
+                </div>
+                <div class="flex items-center justify-center space-x-2 text-sm" id="auto-delete-container">
+                    <input type="checkbox" id="auto-delete-small-files" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    <label for="auto-delete-small-files" class="text-gray-700" data-lang-key="autoDeleteLabel"></label>
+                    <input type="number" id="auto-delete-size" class="w-16 text-center border rounded-md p-1" value="5">
+                    <label for="auto-delete-size" class="text-gray-700" data-lang-key="autoDeleteUnit"></label>
+                </div>
+            </div>
+
+            <button id="select-folder-btn" class="w-full bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-indigo-700 transition-colors duration-300 shadow-md" data-lang-key="selectFolderBtn"></button>
+            <p id="error-message" class="text-red-500 mt-4 text-sm hidden" data-lang-key="compatibilityError"></p>
+        </div>
+
+        <!-- Main App View -->
+        <div id="main-view" class="hidden">
+             <div class="w-full text-center mb-4">
+                <button id="finish-early-btn" class="w-full bg-gray-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-800 transition-colors shadow-sm text-sm" data-lang-key="finishEarlyBtn"></button>
+            </div>
+            <div id="card-container" class="relative" style="min-height: 480px;"></div>
+
+            <div id="progress-container" class="my-4 text-center">
+                <p id="progress-text" class="text-gray-600"></p>
+                <div class="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                    <div id="progress-bar" class="bg-indigo-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="flex justify-around items-center mt-6">
+                <button id="pass-btn" class="p-4 rounded-full shadow-lg transform hover:scale-110 transition-transform duration-200 btn-pass" title="Pass / Inspect Folder (Right Arrow)">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                </button>
+                 <button id="undo-btn" class="p-3 rounded-full shadow-lg transform hover:scale-110 transition-transform duration-200 btn-action" disabled title="Undo (Z)">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <button id="skip-folder-btn" class="p-3 rounded-full shadow-lg transform hover:scale-110 transition-transform duration-200 hidden btn-skip" title="Skip Folder (Down Arrow)">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path d="M4.555 5.168A1 1 0 003 6v8a1 1 0 001.555.832L10 11.172V14a1 1 0 001.555.832l6-4a1 1 0 000-1.664l-6-4A1 1 0 0010 6v2.828L4.555 5.168z" /></svg>
+                </button>
+                <button id="smash-btn" class="p-4 rounded-full shadow-lg transform hover:scale-110 transition-transform duration-200 btn-smash" title="Smash (Left Arrow)">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Confirmation View -->
+        <div id="confirmation-view" class="hidden bg-white p-8 rounded-2xl shadow-lg">
+            <h2 class="text-2xl font-bold mb-4 text-center text-red-700" data-lang-key="confirmTitle"></h2>
+            <p class="text-gray-600 mb-2 text-center">
+                <span class="font-bold" data-lang-key="confirmWarning"></span>
+                <span data-lang-key="confirmWarningText"></span>
+            </p>
+            <p class="text-xs text-gray-500 mb-6 text-center" data-lang-key="confirmTrashNote"></p>
+            <div id="files-to-delete-list" class="max-h-60 overflow-y-auto bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6"></div>
+            <div class="flex justify-between gap-4">
+                <button id="cancel-delete-btn" class="w-full bg-gray-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-600 transition-colors" data-lang-key="cancelBtn"></button>
+                <button id="confirm-delete-btn" class="w-full bg-red-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-red-700 transition-colors" data-lang-key="confirmBtn"></button>
+            </div>
+        </div>
+        
+        <!-- Finished View -->
+        <div id="finished-view" class="hidden text-center bg-white p-8 rounded-2xl shadow-lg">
+             <h2 id="finished-title" class="text-2xl font-bold mb-4 text-green-600"></h2>
+             <p id="freed-space-message" class="text-lg text-gray-700 mb-6"></p>
+             <button id="start-over-btn" class="w-full bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-indigo-700 transition-colors" data-lang-key="startOverBtn"></button>
+        </div>
+    </div>
+
+    <script>
+        // --- I18N (Internationalization) ---
+        const translations = {
+            en: {
+                // Initial View
+                title: "File Smasher",
+                subtitle: "Manage your extra files in a new style!",
+                subfolderLabel: "Include Subfolders",
+                subfolderTooltip: "By enabling this, all files within nested folders will also be scanned.",
+                autoDeleteLabel: "Auto-delete files smaller than",
+                autoDeleteUnit: "MB",
+                selectFolderBtn: "Select Folder",
+                compatibilityError: "This browser is not supported. Please use Chrome or Edge.",
+                // Main View
+                loadingFiles: "Reading items...",
+                calculatingSize: "Calculating sizes & sorting...",
+                finishEarlyBtn: "Finish & View Deletion List",
+                progressText: "Item {current} of {total}",
+                // Folder Card
+                folderContains: "This folder contains {count} items.",
+                folderTopFiles: "Largest files:",
+                folderInstructions: "Smash (Left), Inspect (Right), Skip (Down)",
+                // Confirmation View
+                confirmTitle: "Confirm Permanent Deletion",
+                confirmWarning: "Warning:",
+                confirmWarningText: " This action will permanently and irreversibly delete the files.",
+                confirmTrashNote: "Files will NOT be moved to the Trash bin.",
+                confirmBtn: "Yes, Delete Permanently",
+                cancelBtn: "Cancel",
+                // Finished View
+                successMessage: "Operation completed successfully!",
+                noItemsToDelete: "No items were selected for deletion.",
+                noItemsLeft: "No items left to delete.",
+                noItemsFound: "No items found in this folder.",
+                freedSpace: "{space} of space was freed!",
+                noSpaceFreed: "No space was freed.",
+                startOverBtn: "Start Over",
+                langSwitcher: "فارسی",
+            },
+            fa: {
+                // Initial View
+                title: "File Smasher",
+                subtitle: "فایل‌های اضافی خود را به سبکی جدید مدیریت کنید!",
+                subfolderLabel: "بررسی زیرشاخه‌ها",
+                subfolderTooltip: "با فعال کردن این گزینه، تمام فایل‌های موجود در فولدرهای تودرتو نیز بررسی خواهند شد.",
+                autoDeleteLabel: "حذف خودکار فایل‌های کوچکتر از",
+                autoDeleteUnit: "مگابایت",
+                selectFolderBtn: "انتخاب فولدر",
+                compatibilityError: "این مرورگر پشتیبانی نمی‌شود. لطفاً از Chrome یا Edge استفاده کنید.",
+                // Main View
+                loadingFiles: "در حال خواندن آیتم‌ها...",
+                calculatingSize: "در حال محاسبه حجم و مرتب‌سازی...",
+                finishEarlyBtn: "پایان و مشاهده لیست حذف",
+                progressText: "آیتم {current} از {total}",
+                // Folder Card
+                folderContains: "این فولدر شامل {count} آیتم است.",
+                folderTopFiles: "بزرگترین فایل‌ها:",
+                folderInstructions: "حذف (چپ)، بررسی (راست)، رد شدن (پایین)",
+                // Confirmation View
+                confirmTitle: "تایید حذف دائمی",
+                confirmWarning: "هشدار:",
+                confirmWarningText: " این عمل فایل‌ها را به صورت دائمی و غیرقابل بازگشت حذف می‌کند.",
+                confirmTrashNote: "فایل‌ها به سطل زباله منتقل نمی‌شوند.",
+                confirmBtn: "بله، حذف دائمی کن",
+                cancelBtn: "انصراف",
+                // Finished View
+                successMessage: "عملیات با موفقیت انجام شد!",
+                noItemsToDelete: "هیچ آیتمی برای حذف انتخاب نشد.",
+                noItemsLeft: "هیچ آیتمی برای حذف باقی نماند.",
+                noItemsFound: "هیچ آیتمی در این فولدر پیدا نشد.",
+                freedSpace: "{space} فضا آزاد شد!",
+                noSpaceFreed: "هیچ فضایی آزاد نشد.",
+                startOverBtn: "شروع مجدد",
+                langSwitcher: "English",
+            }
+        };
+
+        let currentLang = localStorage.getItem('fileSmasherLang') || 'fa';
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('fileSmasherLang', lang);
+            const htmlEl = document.documentElement;
+            htmlEl.setAttribute('lang', lang);
+            htmlEl.setAttribute('dir', lang === 'fa' ? 'rtl' : 'ltr');
+
+            document.querySelectorAll('[data-lang-key]').forEach(el => {
+                const key = el.dataset.langKey;
+                if (translations[lang][key]) {
+                    el.textContent = translations[lang][key];
+                }
+            });
+            
+            // Handle RTL/LTR specific classes
+            const subfolderContainer = document.getElementById('subfolder-container');
+            const autoDeleteContainer = document.getElementById('auto-delete-container');
+            if (lang === 'fa') {
+                subfolderContainer.classList.add('space-x-reverse');
+                autoDeleteContainer.classList.add('space-x-reverse');
+            } else {
+                subfolderContainer.classList.remove('space-x-reverse');
+                autoDeleteContainer.classList.remove('space-x-reverse');
+            }
+        }
+
+        // --- DOM Elements ---
+        const langSwitcher = document.getElementById('lang-switcher');
+        const initialView = document.getElementById('initial-view');
+        const mainView = document.getElementById('main-view');
+        const confirmationView = document.getElementById('confirmation-view');
+        const finishedView = document.getElementById('finished-view');
+        const selectFolderBtn = document.getElementById('select-folder-btn');
+        const includeSubfoldersCheckbox = document.getElementById('include-subfolders');
+        const autoDeleteCheckbox = document.getElementById('auto-delete-small-files');
+        const autoDeleteSizeInput = document.getElementById('auto-delete-size');
+        const errorMessage = document.getElementById('error-message');
+        const cardContainer = document.getElementById('card-container');
+        const passBtn = document.getElementById('pass-btn');
+        const smashBtn = document.getElementById('smash-btn');
+        const undoBtn = document.getElementById('undo-btn');
+        const skipFolderBtn = document.getElementById('skip-folder-btn');
+        const finishEarlyBtn = document.getElementById('finish-early-btn');
+        const progressText = document.getElementById('progress-text');
+        const progressBar = document.getElementById('progress-bar');
+        const filesToDeleteList = document.getElementById('files-to-delete-list');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+        const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+        const startOverBtn = document.getElementById('start-over-btn');
+
+        // App State
+        let rootDirectoryHandle = null;
+        let itemsToProcess = [];
+        let itemsToDelete = [];
+        let currentIndex = 0;
+        let history = [];
+        let processedPaths = [];
+
+        // --- Helper Functions ---
+        function checkCompatibility() {
+            if (!('showDirectoryPicker' in window)) {
+                errorMessage.classList.remove('hidden');
+                selectFolderBtn.disabled = true;
+                return false;
+            }
+            return true;
+        }
+
+        function truncateString(str, num) {
+            if (str.length <= num) return str;
+            return str.slice(0, num) + '...';
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (!+bytes) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        }
+
+        // --- Core Logic ---
+        async function buildProcessingList(dirHandle, currentPath, allItems) {
+            const entries = [];
+            for await (const entry of dirHandle.values()) {
+                entries.push(entry);
+            }
+
+            for (const entry of entries) {
+                const newPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+                if (entry.kind === 'directory') {
+                    const folderItem = { type: 'folder', handle: entry, relativePath: newPath, name: entry.name };
+                    allItems.push(folderItem);
+                    await buildProcessingList(entry, newPath, allItems);
+                } else if (entry.kind === 'file') {
+                    const file = await entry.getFile();
+                    allItems.push({ type: 'file', handle: entry, relativePath: newPath, name: entry.name, size: file.size });
+                }
+            }
+        }
+
+        async function handleSelectFolder() {
+            try {
+                rootDirectoryHandle = await window.showDirectoryPicker();
+                let allFoundItems = [];
+                itemsToDelete = [];
+                history = [];
+                processedPaths = []; 
+                currentIndex = 0;
+                undoBtn.disabled = true;
+                
+                initialView.innerHTML = `<p class="text-lg">${translations[currentLang].loadingFiles}</p>`;
+
+                const includeSubfolders = includeSubfoldersCheckbox.checked;
+                
+                if (includeSubfolders) {
+                    await buildProcessingList(rootDirectoryHandle, '', allFoundItems);
+                } else {
+                    for await (const entry of rootDirectoryHandle.values()) {
+                        if (entry.kind === 'file') {
+                           const file = await entry.getFile();
+                           allFoundItems.push({ type: 'file', handle: entry, relativePath: entry.name, name: entry.name, size: file.size });
+                        }
+                    }
+                }
+                
+                const autoDeleteEnabled = autoDeleteCheckbox.checked;
+                if (autoDeleteEnabled) {
+                    const autoDeleteSizeMB = parseFloat(autoDeleteSizeInput.value) || 0;
+                    const autoDeleteSizeBytes = autoDeleteSizeMB * 1024 * 1024;
+                    
+                    const remainingItems = [];
+                    for (const item of allFoundItems) {
+                        if (item.type === 'file' && item.size < autoDeleteSizeBytes) {
+                            itemsToDelete.push(item);
+                        } else {
+                            remainingItems.push(item);
+                        }
+                    }
+                    itemsToProcess = remainingItems;
+                } else {
+                    itemsToProcess = allFoundItems;
+                }
+
+                if (itemsToProcess.length === 0 && itemsToDelete.length > 0) {
+                     showConfirmationScreen();
+                     return;
+                } else if (itemsToProcess.length === 0) {
+                     showFinishedView(translations[currentLang].noItemsFound);
+                     return;
+                }
+
+
+                initialView.innerHTML = `<p class="text-lg">${translations[currentLang].calculatingSize}</p>`;
+                
+                const allFiles = itemsToProcess.filter(i => i.type === 'file');
+                for (const item of itemsToProcess) {
+                    if (item.type === 'folder') {
+                        let totalSize = 0;
+                        for (const file of allFiles) {
+                            if (file.relativePath.startsWith(item.relativePath + '/')) {
+                                totalSize += file.size;
+                            }
+                        }
+                        item.size = totalSize;
+                    }
+                }
+
+                itemsToProcess.sort((a, b) => (b.size || 0) - (a.size || 0));
+                
+                initialView.classList.add('hidden');
+                mainView.classList.remove('hidden');
+                renderNextCard();
+
+            } catch (err) {
+                console.error("Error selecting folder or reading files:", err);
+                if(document.getElementById('select-folder-btn') === null) location.reload();
+            }
+        }
+
+        function renderNextCard() {
+            while (currentIndex < itemsToProcess.length && 
+                   processedPaths.some(p => itemsToProcess[currentIndex].relativePath.startsWith(p + '/'))) {
+                currentIndex++;
+            }
+
+            updateProgress();
+
+            if (currentIndex >= itemsToProcess.length) {
+                showConfirmationScreen();
+                return;
+            }
+            
+            const item = itemsToProcess[currentIndex];
+            const card = document.createElement('div');
+            card.className = 'card absolute top-0 left-0 w-full h-full bg-white rounded-2xl shadow-lg flex flex-col items-center justify-center p-6 border border-gray-200';
+            
+            if (item.type === 'folder') {
+                skipFolderBtn.classList.remove('hidden');
+                generateFolderPreview(item, card);
+            } else {
+                skipFolderBtn.classList.add('hidden');
+                generateFilePreview(item, card);
+            }
+            
+            cardContainer.innerHTML = '';
+            cardContainer.appendChild(card);
+        }
+
+        function generateFolderPreview(item, cardElement) {
+            const contentCount = itemsToProcess.filter(i => i.relativePath.startsWith(item.relativePath + '/') && i.relativePath !== item.relativePath).length;
+            const filesInFolder = itemsToProcess.filter(i => i.type === 'file' && i.relativePath.startsWith(item.relativePath + '/'));
+            const topFiles = filesInFolder.sort((a, b) => b.size - a.size).slice(0, 3);
+            
+            let topFilesHtml = '';
+            if (topFiles.length > 0) {
+                topFilesHtml = `
+                    <div class="mt-4 text-xs text-gray-600 w-full bg-gray-50 p-2 rounded-md">
+                        <p class="font-semibold mb-1">${translations[currentLang].folderTopFiles}</p>
+                        <ul class="space-y-1">
+                            ${topFiles.map(f => `<li class="flex justify-between items-center"><span>${truncateString(f.name, 25)}</span><span class="text-gray-400 flex-shrink-0 px-2">${formatBytes(f.size)}</span></li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            cardElement.innerHTML = `
+                <div class="file-icon text-yellow-400 mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M19.5 21a3 3 0 003-3v-8.625a3 3 0 00-3-3h-3.375a3 3 0 00-3-3h-3.75a3 3 0 00-3 3H3a3 3 0 00-3 3v8.625a3 3 0 003 3h16.5z" /></svg>
+                </div>
+                <h3 class="text-xl font-bold text-center break-all">${truncateString(item.name, 30)}</h3>
+                <p class="text-gray-400 text-xs mt-1 break-all">${truncateString(item.relativePath, 40)}</p>
+                <p class="text-gray-500 text-sm mt-2">${translations[currentLang].folderContains.replace('{count}', contentCount)} | ${formatBytes(item.size)}</p>
+                ${topFilesHtml}
+                <p class="text-gray-600 font-semibold mt-auto pt-2 text-center text-xs" data-lang-key="folderInstructions"></p>
+            `;
+            setLanguage(currentLang); // To translate the dynamically added instruction text
+        }
+
+        async function generateFilePreview(item, cardElement) {
+            const file = await item.handle.getFile();
+            let previewHtml = '';
+            if (file.type.startsWith('image/')) {
+                const objectURL = URL.createObjectURL(file);
+                previewHtml = `<img src="${objectURL}" alt="File Preview" class="max-h-64 w-auto object-contain rounded-lg mb-4" onload="URL.revokeObjectURL(this.src)">`;
+            } else {
+                previewHtml = `<div class="file-icon text-gray-400 mb-4"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg></div>`;
+            }
+            cardElement.innerHTML = `
+                ${previewHtml}
+                <h3 class="text-xl font-bold text-center break-all">${truncateString(item.name, 30)}</h3>
+                <p class="text-gray-400 text-xs mt-1 break-all">${truncateString(item.relativePath, 40)}</p>
+                <p class="text-gray-500 text-sm mt-2">${formatBytes(item.size)}</p>
+            `;
+        }
+        
+        function handleDecision(decision) {
+            const card = cardContainer.querySelector('.card');
+            if (!card) return;
+            
+            history.push({ currentIndex, itemsToDelete: [...itemsToDelete], processedPaths: [...processedPaths] });
+            undoBtn.disabled = false;
+
+            const item = itemsToProcess[currentIndex];
+
+            if (decision === 'smash') {
+                card.classList.add('removing-left');
+                itemsToDelete.push(item);
+                if (item.type === 'folder') {
+                    processedPaths.push(item.relativePath);
+                    const children = itemsToProcess.filter(i => i.relativePath.startsWith(item.relativePath + '/'));
+                    itemsToDelete.push(...children);
+                }
+            } else { // Pass
+                card.classList.add('removing-right');
+            }
+            
+            currentIndex++;
+            setTimeout(() => renderNextCard(), 300);
+        }
+
+        function handleSkipFolder() {
+            const card = cardContainer.querySelector('.card');
+            const item = itemsToProcess[currentIndex];
+            if (!card || item.type !== 'folder') return;
+
+            history.push({ currentIndex, itemsToDelete: [...itemsToDelete], processedPaths: [...processedPaths] });
+            undoBtn.disabled = false;
+
+            card.classList.add('removing-right');
+            
+            processedPaths.push(item.relativePath);
+
+            currentIndex++;
+            setTimeout(() => renderNextCard(), 300);
+        }
+
+        function handleUndo() {
+            if (history.length === 0) return;
+            
+            const lastState = history.pop();
+            currentIndex = lastState.currentIndex;
+            itemsToDelete = lastState.itemsToDelete;
+            processedPaths = lastState.processedPaths; 
+
+            if (history.length === 0) {
+                undoBtn.disabled = true;
+            }
+            
+            renderNextCard();
+        }
+
+        function updateProgress() {
+            const processedCount = currentIndex;
+            const totalCount = itemsToProcess.length;
+            const percentage = totalCount > 0 ? (processedCount / totalCount) * 100 : 0;
+            progressText.textContent = translations[currentLang].progressText
+                .replace('{current}', processedCount)
+                .replace('{total}', totalCount);
+            progressBar.style.width = `${percentage}%`;
+        }
+        
+        function showConfirmationScreen() {
+            mainView.classList.add('hidden');
+            const uniqueItemsToDelete = [...new Map(itemsToDelete.map(item => [item.relativePath, item])).values()];
+            
+            if (uniqueItemsToDelete.length === 0) {
+                showFinishedView(translations[currentLang].noItemsToDelete);
+                return;
+            }
+            
+            updateConfirmationList();
+            confirmationView.classList.remove('hidden');
+        }
+
+        function updateConfirmationList() {
+            const uniqueItemsToDelete = [...new Map(itemsToDelete.map(item => [item.relativePath, item])).values()];
+            
+            if (uniqueItemsToDelete.length === 0) {
+                showFinishedView(translations[currentLang].noItemsLeft);
+                return;
+            }
+
+            filesToDeleteList.innerHTML = uniqueItemsToDelete
+                .sort((a, b) => a.relativePath.localeCompare(b.relativePath))
+                .map(item => 
+                    `<div class="p-2 bg-white rounded my-1 text-sm break-all flex justify-between items-center gap-2">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            ${item.type === 'folder' 
+                                ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-500 flex-shrink-0"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>` 
+                                : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-gray-400 flex-shrink-0"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0v12h8V4H6z" clip-rule="evenodd" /></svg>`
+                            }
+                            <span class="truncate">${item.relativePath}</span>
+                        </div>
+                        <div class="flex items-center gap-3 flex-shrink-0">
+                            <span class="text-xs text-gray-500">${formatBytes(item.size || 0)}</span>
+                            <button data-path="${item.relativePath}" class="remove-item-btn text-red-500 hover:text-red-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>`
+                ).join('');
+        }
+
+        async function performDelete() {
+            confirmDeleteBtn.disabled = true;
+            confirmDeleteBtn.textContent = '...';
+            
+            if (await rootDirectoryHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') {
+                if (await rootDirectoryHandle.requestPermission({ mode: 'readwrite' }) !== 'granted') {
+                    alert('Permission to delete files was not granted.');
+                    resetApp();
+                    return;
+                }
+            }
+
+            const uniqueItemsToDelete = [...new Map(itemsToDelete.map(item => [item.relativePath, item])).values()];
+            const sortedItems = uniqueItemsToDelete.sort((a, b) => b.relativePath.length - a.relativePath.length);
+            
+            let totalFreedSpace = 0;
+
+            for (const item of sortedItems) {
+                try {
+                    const pathParts = item.relativePath.split('/');
+                    const entryName = pathParts.pop();
+                    let currentDirHandle = rootDirectoryHandle;
+
+                    for (const part of pathParts) {
+                        currentDirHandle = await currentDirHandle.getDirectoryHandle(part, { create: false });
+                    }
+                    
+                    await currentDirHandle.removeEntry(entryName, { recursive: item.type === 'folder' });
+                    if(item.size) totalFreedSpace += item.size;
+                    console.log(`Deleted: ${item.relativePath}`);
+                } catch (err) {
+                    console.error(`Failed to delete ${item.relativePath}:`, err);
+                }
+            }
+            
+            confirmationView.classList.add('hidden');
+            showFinishedView(translations[currentLang].successMessage, totalFreedSpace);
+        }
+
+        function showFinishedView(message = "Operation completed successfully!", freedSpace = 0) {
+            mainView.classList.add('hidden');
+            confirmationView.classList.add('hidden');
+            
+            document.getElementById('finished-title').textContent = message;
+            const freedSpaceMessage = document.getElementById('freed-space-message');
+
+            if (freedSpace > 0) {
+                freedSpaceMessage.textContent = translations[currentLang].freedSpace.replace('{space}', formatBytes(freedSpace));
+            } else {
+                freedSpaceMessage.textContent = "";
+            }
+
+            finishedView.classList.remove('hidden');
+        }
+
+        function resetApp() {
+            location.reload();
+        }
+
+        // --- Event Listeners ---
+        langSwitcher.addEventListener('click', () => {
+            const newLang = currentLang === 'fa' ? 'en' : 'fa';
+            setLanguage(newLang);
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            checkCompatibility();
+            setLanguage(currentLang);
+        });
+        selectFolderBtn.addEventListener('click', handleSelectFolder);
+        smashBtn.addEventListener('click', () => handleDecision('smash'));
+        passBtn.addEventListener('click', () => handleDecision('pass'));
+        undoBtn.addEventListener('click', handleUndo);
+        skipFolderBtn.addEventListener('click', handleSkipFolder);
+        finishEarlyBtn.addEventListener('click', showConfirmationScreen);
+        confirmDeleteBtn.addEventListener('click', performDelete);
+        cancelDeleteBtn.addEventListener('click', resetApp);
+        startOverBtn.addEventListener('click', resetApp);
+
+        filesToDeleteList.addEventListener('click', (e) => {
+            const removeBtn = e.target.closest('.remove-item-btn');
+            if (removeBtn) {
+                const pathToRemove = removeBtn.dataset.path;
+                itemsToDelete = itemsToDelete.filter(item => !item.relativePath.startsWith(pathToRemove));
+                updateConfirmationList();
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (!mainView.classList.contains('hidden')) {
+                if (e.key === 'ArrowLeft') smashBtn.click();
+                else if (e.key === 'ArrowRight') passBtn.click();
+                else if (e.key === 'ArrowDown') skipFolderBtn.click();
+                else if (e.key.toLowerCase() === 'z') undoBtn.click();
+            }
+        });
+
+    </script>
+</body>
+</html>
